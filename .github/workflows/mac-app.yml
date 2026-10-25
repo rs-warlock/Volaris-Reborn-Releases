@@ -82,7 +82,8 @@ jobs:
           rc=0
           python3 .github/mac/merge_universal.py arm/Vanguard.app x64/Vanguard.app uni/Vanguard.app dist/merge-report.json "$JAVA_HOME/bin/jimage" || rc=$?
           echo "merge exit $rc"
-          [ $rc -eq 1 ] && exit 1
+          # 0 only: a difference between the CPU builds that the merge does not know is never shipped untested
+          [ $rc -ne 0 ] && exit 1
           codesign --force --deep --sign - uni/Vanguard.app
           codesign --verify --deep --strict --verbose=2 uni/Vanguard.app
           lipo -archs uni/Vanguard.app/Contents/MacOS/Vanguard

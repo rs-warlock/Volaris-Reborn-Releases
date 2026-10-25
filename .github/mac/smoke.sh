@@ -50,11 +50,15 @@ res update_installed $installed
 # Play: click the launcher's button through the accessibility API if this Mac allows it...
 started=none
 if [ "$installed" = true ]; then
-  for label in "PLAY VANGUARD" "UPDATE & PLAY"; do
-    osascript -e "tell application \"System Events\" to tell process \"Vanguard\" to click button \"$label\" of window 1" >> "$OUT/click.txt" 2>&1 && { started=launcher-button; break; }
-  done
-  sleep 20
-  if ! pgrep -f 'vanguard.build=player' >/dev/null; then
+  osascript -e 'tell application "System Events" to tell process "Vanguard" to get entire contents of window 1' > "$OUT/launcher-ui-tree.txt" 2>&1
+  osascript "$(dirname "$0")/click_play.applescript" > "$OUT/click.txt" 2>&1
+  sleep 25
+  if pgrep -f 'vanguard.build=player' >/dev/null; then
+    started="launcher-play-button ($(head -c 120 "$OUT/click.txt"))"
+    # the game must run on the app's own Java, not anything else on the Mac
+    ps -o command= -p "$(pgrep -f 'vanguard.build=player' | head -1)" | tr ' ' '\n' | head -1 > "$OUT/game-java.txt"
+    grep -q 'Vanguard.app/Contents/runtime' "$OUT/game-java.txt" && res game_on_bundled_java true || res game_on_bundled_java false
+  else
     # ...otherwise start the game exactly as Launcher.start() does on a Mac, with the app's own Java
     started=same-command
     CACHE=$(dirname "$(ls "$VG"/cache/*/.verified | head -1)")
@@ -66,7 +70,7 @@ if [ "$installed" = true ]; then
   fi
   for t in 30 60 90 120 150; do sleep 30; shot "game-${t}s"; done
 fi
-res game_started_by $started
+res game_started_by "$started"
 pgrep -f 'vanguard.build=player' >/dev/null && res game_alive_after_150s true || res game_alive_after_150s false
 [ -f "$VG/client.log" ] && tail -n 600 "$VG/client.log" > "$OUT/client-log-tail.txt"
 ls "$VG"/hs_err_pid*.log >/dev/null 2>&1 && { cp "$VG"/hs_err_pid*.log "$OUT/"; res jvm_crash true; } || res jvm_crash false

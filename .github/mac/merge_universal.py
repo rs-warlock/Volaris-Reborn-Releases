@@ -20,7 +20,9 @@ THIN = b'\xcf\xfa\xed\xfe'          # 64-bit little-endian Mach-O (both CPUs)
 FAT = b'\xca\xfe\xba\xbe'
 HOME = 'Contents/runtime/Contents/Home/'
 # Text that names the CPU it was built for and that nothing reads while the game runs.
-KNOWN_DIFFERENT = {HOME + 'release'}
+KNOWN_DIFFERENT = {HOME + 'release',
+                   # signature manifests: the merged app is signed again afterwards
+                   'Contents/_CodeSignature/CodeResources', 'Contents/runtime/Contents/_CodeSignature/CodeResources'}
 MODULES = HOME + 'lib/modules'
 
 
@@ -122,6 +124,18 @@ def main():
             report['differ_unknown'].append(rel)
     m = report['modules']
     report['modules_identical'] = m is None
+    # Every module descriptor names the CPU it was linked for (ModuleTarget "macos-aarch64" / "macos-amd64"), and the
+    # jdk.jpackage tool carries its own native launcher. The JVM reads neither while it runs a program (the 10-25 run
+    # played on an Intel Mac with the arm64 descriptors), so the universal app keeps arm64's class image. Anything
+    # else that differs is reported as unknown.
+    if m is not None:
+        def target_only(k):
+            return (k.endswith('/module-info.class') or k.startswith('java.base/jdk/internal/module/SystemModules$')
+                    or k == 'jdk.jpackage/jdk/jpackage/internal/resources/jpackageapplauncher')
+        other = [k for k in m['differ'] if not target_only(k)] + m['only_arm64'] + m['only_x64']
+        report['modules_target_only'] = not other
+        if other:
+            report['differ_unknown'].append(MODULES + ': ' + ', '.join(other[:40]))
     with open(REPORT, 'w') as f:
         json.dump(report, f, indent=2)
     print(f"lipo: {len(report['lipo'])} native files, identical: {report['identical']}, "
