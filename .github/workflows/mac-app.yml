@@ -76,7 +76,8 @@ jobs:
           mkdir -p arm x64 dist
           tar -C arm -xzf parts/app-arm64/Vanguard-arm64.tgz
           tar -C x64 -xzf parts/app-x64/Vanguard-x64.tgz
-          diff arm/jdk-version.txt x64/jdk-version.txt || { echo "the two runners built with different Java versions"; exit 1; }
+          # the build line only: "mixed mode, sharing" just says whether that runner's JDK has its own CDS archive
+          diff <(sed -n 2p arm/jdk-version.txt) <(sed -n 2p x64/jdk-version.txt) || { echo "the two runners built with different Java versions"; exit 1; }
           diff arm/launcher-sha256.txt x64/launcher-sha256.txt || { echo "the two runners wrapped different launcher jars"; exit 1; }
           rc=0
           python3 .github/mac/merge_universal.py arm/Vanguard.app x64/Vanguard.app uni/Vanguard.app dist/merge-report.json "$JAVA_HOME/bin/jimage" || rc=$?
