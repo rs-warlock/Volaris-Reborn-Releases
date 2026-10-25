@@ -13,7 +13,7 @@ permissions:
   contents: read
 env:
   # one exact Java for both CPUs: the universal merge needs byte-identical class files
-  JDK_VERSION: '17.0.21+9'
+  JDK_VERSION: '17.0.20+101'   # Temurin jdk-17.0.20.1+1, the newest 17 built for both CPUs (10-25)
 
 jobs:
   build:
