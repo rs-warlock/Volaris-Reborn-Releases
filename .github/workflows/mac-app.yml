@@ -1,0 +1,127 @@
+name: Mac app
+# Vanguard.app with its own Java 17, so Mac players never install Java: the release's Vanguard-Launcher.jar wrapped by
+# jpackage on an Apple Silicon and an Intel runner, merged into one universal app, then installed from the DMG and
+# run on both kinds of Mac (bundled-Java check, launcher window, a real update, the game).
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release whose Vanguard-Launcher.jar to wrap (blank = the latest release)
+        required: false
+        default: ''
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, arch: arm64, jdk_arch: aarch64 }
+          - { runner: macos-15-intel, arch: x64, jdk_arch: x64 }
+    runs-on: ${{ matrix.runner }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG_IN: ${{ inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          architecture: ${{ matrix.jdk_arch }}
+      - name: Fetch the launcher jar
+        run: |
+          set -euo pipefail
+          TAG="${TAG_IN:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)}"
+          echo "release: $TAG"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern Vanguard-Launcher.jar --dir input
+          shasum -a 256 input/Vanguard-Launcher.jar | tee launcher-sha256.txt
+          echo "$TAG" > release-tag.txt
+          java -version 2>&1 | tee jdk-version.txt
+      - name: Build Vanguard.app (${{ matrix.arch }})
+        run: bash .github/mac/build_app.sh input/Vanguard-Launcher.jar out
+      - name: Pack
+        run: |
+          cp launcher-sha256.txt release-tag.txt jdk-version.txt out/
+          tar -C out -czf Vanguard-${{ matrix.arch }}.tgz Vanguard.app runtime-check.txt launcher-sha256.txt release-tag.txt jdk-version.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ matrix.arch }}
+          path: Vanguard-${{ matrix.arch }}.tgz
+          if-no-files-found: error
+
+  universal:
+    needs: build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          architecture: aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          path: parts
+      - name: Merge into one universal app
+        run: |
+          set -uo pipefail
+          mkdir -p arm x64 dist
+          tar -C arm -xzf parts/app-arm64/Vanguard-arm64.tgz
+          tar -C x64 -xzf parts/app-x64/Vanguard-x64.tgz
+          diff arm/jdk-version.txt x64/jdk-version.txt || { echo "the two runners built with different Java versions"; exit 1; }
+          diff arm/launcher-sha256.txt x64/launcher-sha256.txt || { echo "the two runners wrapped different launcher jars"; exit 1; }
+          rc=0
+          python3 .github/mac/merge_universal.py arm/Vanguard.app x64/Vanguard.app uni/Vanguard.app dist/merge-report.json "$JAVA_HOME/bin/jimage" || rc=$?
+          echo "merge exit $rc"
+          [ $rc -eq 1 ] && exit 1
+          codesign --force --deep --sign - uni/Vanguard.app
+          codesign --verify --deep --strict --verbose=2 uni/Vanguard.app
+          lipo -archs uni/Vanguard.app/Contents/MacOS/Vanguard
+          uni/Vanguard.app/Contents/MacOS/Vanguard --runtime-check "$PWD/dist/runtime-check-universal.txt"
+          cat dist/runtime-check-universal.txt
+          grep -q '^PASS:' dist/runtime-check-universal.txt
+      - name: Make the DMGs
+        run: |
+          set -euo pipefail
+          mkdmg() {  # <app> <dmg>: the app and an Applications shortcut to drag it onto
+            rm -rf dmgroot; mkdir dmgroot
+            ditto "$1" dmgroot/Vanguard.app
+            ln -s /Applications dmgroot/Applications
+            hdiutil create -volname Vanguard -srcfolder dmgroot -ov -format UDZO "$2"
+          }
+          mkdmg uni/Vanguard.app dist/Vanguard-mac.dmg
+          mkdmg arm/Vanguard.app dist/Vanguard-mac-arm64.dmg
+          mkdmg x64/Vanguard.app dist/Vanguard-mac-x64.dmg
+          cp arm/release-tag.txt arm/launcher-sha256.txt arm/jdk-version.txt dist/
+          cd dist && shasum -a 256 *.dmg | tee sha256.txt && ls -la
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: dist/
+          if-no-files-found: error
+
+  test:
+    needs: universal
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, arch: arm64 }
+          - { runner: macos-15-intel, arch: x64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dmg
+          path: dist
+      - name: Install from the DMG and play (${{ matrix.arch }})
+        run: bash .github/mac/smoke.sh dist/Vanguard-mac.dmg
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.arch }}
+          path: smoke/
