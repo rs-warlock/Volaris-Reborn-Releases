@@ -69,7 +69,7 @@ if [ "$installed" = true ]; then
     JAR=$(ls "$VG"/client/*/client.jar | head -1)
     ( cd "$VG" && "$APP/Contents/runtime/Contents/Home/bin/java" -Xms512m -Xmx2g -XX:+UseZGC \
         --add-exports=java.desktop/com.apple.eawt=ALL-UNNAMED --add-opens=java.desktop/com.apple.eawt=ALL-UNNAMED \
-        -Xshare:auto -Dvanguard.build=player "-Dvanguard.cache=$CACHE" -Dvanguard.managedCache=true -jar "$JAR" \
+        -Xshare:auto -Dvanguard.build=player "-Dvanguard.cache=$CACHE" -Dvanguard.managedCache=true -Dvanguard.launcher=2 -jar "$JAR" \
         >> "$VG/client.log" 2>&1 & )
   fi
   for t in 30 60 90 120 150; do sleep 30; shot "game-${t}s"; done
