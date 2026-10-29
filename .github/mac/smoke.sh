@@ -9,6 +9,13 @@ APP="$HOME/Applications/Vanguard.app"
 VG="$HOME/Vanguard"
 [ "${CHANNEL:-live}" = staff ] && VG="$HOME/VanguardStaff"   # the staff channel's own home (client update/Channel)
 res() { echo "$1=$2" >> "$OUT/results.txt"; }   # bash 3.2 (macOS) has no associative arrays
+# A real mouse click at the point click_play.applescript reported (its "click at" presses the accessibility element there;
+# the launcher v2 window paints its own buttons, so that press reaches nothing - a player's mouse click does).
+raw_click() {
+  local xy; xy=$(sed -n 's/^click-at \([0-9.]*\),\([0-9.]*\).*/\1 \2/p' "$1" | head -1)
+  [ -n "$xy" ] || return 1
+  swift "$(dirname "$0")/raw_click.swift" $xy >> "$2" 2>&1
+}
 : > "$OUT/results.txt"
 
 limit() { perl -e 'alarm shift; exec @ARGV' "$@"; }   # macOS has no timeout(1)
@@ -57,9 +64,15 @@ if [ "$installed" = true ]; then
   osascript -e 'tell application "System Events" to tell process "Vanguard" to get entire contents of window 1' > "$OUT/launcher-ui-tree.txt" 2>&1
   osascript "$(dirname "$0")/click_play.applescript" > "$OUT/click.txt" 2>&1
   sleep 3; shot after-click   # the launcher's own message (a toast) shows for about 3 s
-  sleep 22
+  sleep 5
+  how="launcher-play-button"
+  if ! pgrep -f 'vanguard.build=player' >/dev/null; then
+    raw_click "$OUT/click.txt" "$OUT/raw-click.txt" && how="launcher-play-button raw-click"
+    sleep 3; shot after-raw-click
+  fi
+  sleep 14
   if pgrep -f 'vanguard.build=player' >/dev/null; then
-    started="launcher-play-button ($(head -c 120 "$OUT/click.txt"))"
+    started="$how ($(head -c 120 "$OUT/click.txt"))"
     # the game must run on the app's own Java, not anything else on the Mac
     ps -o command= -p "$(pgrep -f 'vanguard.build=player' | head -1)" | tr ' ' '\n' | head -1 > "$OUT/game-java.txt"
     grep -q 'Vanguard.app/Contents/runtime' "$OUT/game-java.txt" && res game_on_bundled_java true || res game_on_bundled_java false
@@ -96,6 +109,10 @@ if [ -n "${UI_DEBUG_JAR:-}" ] && [ -f "${UI_DEBUG_JAR}" ]; then
   osascript -e 'tell application "System Events" to get name of every process whose frontmost is true' > "$OUT/ui-debug-front.txt" 2>&1
   osascript "$(dirname "$0")/click_play.applescript" java > "$OUT/ui-debug-click.txt" 2>&1 || true
   sleep 3; shot ui-debug-after-click
+  if ! pgrep -f 'vanguard.build=player' >/dev/null; then
+    raw_click "$OUT/ui-debug-click.txt" "$OUT/ui-debug-raw-click.txt"; res ui_debug_raw_click true
+    sleep 3; shot ui-debug-after-raw-click
+  fi
   sleep 12
   pgrep -f 'vanguard.build=player' >/dev/null && res ui_debug_game_started true || res ui_debug_game_started false
   [ -f "$VG/launcher-play.log" ] && cp "$VG/launcher-play.log" "$OUT/ui-debug-play.log"
