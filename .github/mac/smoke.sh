@@ -85,6 +85,24 @@ grep -c -E 'Exception|Error' "$OUT/client-log-tail.txt" > "$OUT/client-log-error
 pkill -f 'vanguard.build=player' || true
 pkill -f 'Vanguard.app/Contents/MacOS/Vanguard' || true
 
+# (debug, UI_DEBUG_JAR) the launcher v2 window run directly on the app's Java with its event log: what a PLAY click reaches
+if [ -n "${UI_DEBUG_JAR:-}" ] && [ -f "${UI_DEBUG_JAR}" ]; then
+  sleep 3
+  rm -f "$VG/launcher-play.log"
+  CH_OPT=""; [ "${CHANNEL:-live}" = staff ] && CH_OPT="-Dvanguard.channel=staff"
+  "$APP/Contents/runtime/Contents/Home/bin/java" -Xmx256m $CH_OPT -Dvanguard.launcher.eventlog=true \
+      -cp "$PWD/${UI_DEBUG_JAR}" com.volaris.launcherui.LauncherUi > "$OUT/ui-debug.out" 2>&1 &
+  sleep 20; shot ui-debug-open
+  osascript -e 'tell application "System Events" to get name of every process whose frontmost is true' > "$OUT/ui-debug-front.txt" 2>&1
+  osascript "$(dirname "$0")/click_play.applescript" java > "$OUT/ui-debug-click.txt" 2>&1 || true
+  sleep 3; shot ui-debug-after-click
+  sleep 12
+  pgrep -f 'vanguard.build=player' >/dev/null && res ui_debug_game_started true || res ui_debug_game_started false
+  [ -f "$VG/launcher-play.log" ] && cp "$VG/launcher-play.log" "$OUT/ui-debug-play.log"
+  pkill -f 'vanguard.build=player' || true
+  pkill -f 'com.volaris.launcherui.LauncherUi' || true
+fi
+
 python3 - "$OUT/results.txt" "$OUT/summary.json" <<'PY'
 import json, sys
 r = {}

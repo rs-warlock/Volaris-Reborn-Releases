@@ -21,6 +21,14 @@ on:
         default: new
         type: choice
         options: [new, classic]
+      ui_debug_tag:
+        description: (debug) release holding a launcher UI jar to run directly after the smoke test, with its event log
+        required: false
+        default: ''
+      ui_debug_asset:
+        description: (debug) that jar's asset name, e.g. Vanguard-Launcher-UI-debug.jar
+        required: false
+        default: ''
 permissions:
   contents: read
 env:
@@ -139,9 +147,15 @@ jobs:
         with:
           name: dmg
           path: dist
+      - name: Fetch the debug launcher UI
+        if: ${{ inputs.ui_debug_tag != '' && inputs.ui_debug_asset != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ inputs.ui_debug_tag }}" --repo "$GITHUB_REPOSITORY" --pattern "${{ inputs.ui_debug_asset }}" --dir uidebug
       - name: Install from the DMG and play (${{ matrix.arch }})
         env:
           CHANNEL: ${{ inputs.channel || 'live' }}
+          UI_DEBUG_JAR: ${{ inputs.ui_debug_asset != '' && format('uidebug/{0}', inputs.ui_debug_asset) || '' }}
         run: bash .github/mac/smoke.sh dist/Vanguard-mac.dmg
       - uses: actions/upload-artifact@v4
         if: always()

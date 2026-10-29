@@ -4,9 +4,11 @@
 --   launcher v2 (2026-10-29, Vanguard-Launcher-UI.jar: a 1120x700 borderless window plus the docked deals window):
 --   PLAY sits 72% across and 44% down the main window. The main window is the widest one.
 -- Prints which way it went.
-on run
+on run argv
+	set procName to "Vanguard"
+	if (count of argv) > 0 then set procName to item 1 of argv
 	tell application "System Events"
-		tell process "Vanguard"
+		tell process procName
 			set frontmost to true
 			delay 1
 			set w to window 1
