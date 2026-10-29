@@ -1,11 +1,13 @@
 #!/bin/bash
 # Builds Vanguard.app for this Mac's CPU (arm64 or x64): the player launcher jar from a release, wrapped by jpackage
 # with its own Java 17, so players never install Java. Run by .github/workflows/mac-app.yml on a macOS runner.
-#   build_app.sh <launcher jar> <out dir> [live|staff]   (staff: a test app on the staff channel, BETA)
+#   build_app.sh <launcher jar> <out dir> [live|staff] [new|classic]
+#   (staff: a test app on the staff channel, BETA; classic: the classic window, -Dvanguard.classicLauncher=true)
 set -euo pipefail
-JAR="$1"; OUT="$2"; CHANNEL="${3:-live}"
+JAR="$1"; OUT="$2"; CHANNEL="${3:-live}"; WINDOW="${4:-new}"
 CHANNEL_OPTS=()
 [ "$CHANNEL" = staff ] && CHANNEL_OPTS=(--java-options -Dvanguard.channel=staff)
+[ "$WINDOW" = classic ] && CHANNEL_OPTS+=(--java-options -Dvanguard.classicLauncher=true)
 WORK="$(mktemp -d)"
 mkdir -p "$OUT" "$WORK/input"
 cp "$JAR" "$WORK/input/Vanguard-Launcher.jar"

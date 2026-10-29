@@ -15,6 +15,12 @@ on:
         default: live
         type: choice
         options: [live, staff]
+      window:
+        description: new (the launcher v2 window) or classic (the classic window, until the new one plays on a Mac)
+        required: false
+        default: new
+        type: choice
+        options: [new, classic]
 permissions:
   contents: read
 env:
@@ -34,6 +40,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG_IN: ${{ inputs.release_tag }}
       CHANNEL: ${{ inputs.channel || 'live' }}
+      WINDOW: ${{ inputs.window || 'new' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
@@ -52,7 +59,7 @@ jobs:
           echo "$TAG" > release-tag.txt
           java -version 2>&1 | tee jdk-version.txt
       - name: Build Vanguard.app (${{ matrix.arch }})
-        run: bash .github/mac/build_app.sh input/Vanguard-Launcher.jar out "$CHANNEL"
+        run: bash .github/mac/build_app.sh input/Vanguard-Launcher.jar out "$CHANNEL" "$WINDOW"
       - name: Pack
         run: |
           cp launcher-sha256.txt release-tag.txt jdk-version.txt out/
