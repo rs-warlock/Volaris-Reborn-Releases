@@ -9,6 +9,12 @@ on:
         description: Release whose Vanguard-Launcher.jar to wrap (blank = the latest release)
         required: false
         default: ''
+      channel:
+        description: live, or staff (a test app on the staff channel and BETA; its release needs a Vanguard-Launcher.jar asset)
+        required: false
+        default: live
+        type: choice
+        options: [live, staff]
 permissions:
   contents: read
 env:
@@ -27,6 +33,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       TAG_IN: ${{ inputs.release_tag }}
+      CHANNEL: ${{ inputs.channel || 'live' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
@@ -45,7 +52,7 @@ jobs:
           echo "$TAG" > release-tag.txt
           java -version 2>&1 | tee jdk-version.txt
       - name: Build Vanguard.app (${{ matrix.arch }})
-        run: bash .github/mac/build_app.sh input/Vanguard-Launcher.jar out
+        run: bash .github/mac/build_app.sh input/Vanguard-Launcher.jar out "$CHANNEL"
       - name: Pack
         run: |
           cp launcher-sha256.txt release-tag.txt jdk-version.txt out/
@@ -126,6 +133,8 @@ jobs:
           name: dmg
           path: dist
       - name: Install from the DMG and play (${{ matrix.arch }})
+        env:
+          CHANNEL: ${{ inputs.channel || 'live' }}
         run: bash .github/mac/smoke.sh dist/Vanguard-mac.dmg
       - uses: actions/upload-artifact@v4
         if: always()

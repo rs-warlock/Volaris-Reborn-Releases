@@ -1,9 +1,11 @@
 #!/bin/bash
 # Builds Vanguard.app for this Mac's CPU (arm64 or x64): the player launcher jar from a release, wrapped by jpackage
 # with its own Java 17, so players never install Java. Run by .github/workflows/mac-app.yml on a macOS runner.
-#   build_app.sh <launcher jar> <out dir>
+#   build_app.sh <launcher jar> <out dir> [live|staff]   (staff: a test app on the staff channel, BETA)
 set -euo pipefail
-JAR="$1"; OUT="$2"
+JAR="$1"; OUT="$2"; CHANNEL="${3:-live}"
+CHANNEL_OPTS=()
+[ "$CHANNEL" = staff ] && CHANNEL_OPTS=(--java-options -Dvanguard.channel=staff)
 WORK="$(mktemp -d)"
 mkdir -p "$OUT" "$WORK/input"
 cp "$JAR" "$WORK/input/Vanguard-Launcher.jar"
@@ -25,7 +27,7 @@ jpackage --type app-image --name Vanguard --app-version 1.0.0 --vendor Vanguard 
   --input "$WORK/input" --main-jar Vanguard-Launcher.jar --main-class com.volaris.launcher.Launcher \
   --dest "$WORK/image" --add-modules ALL-MODULE-PATH \
   --jlink-options "--strip-debug --no-man-pages --no-header-files" \
-  --java-options -Xmx256m \
+  --java-options -Xmx256m "${CHANNEL_OPTS[@]+"${CHANNEL_OPTS[@]}"}" \
   --icon "$WORK/Vanguard.icns" --mac-package-identifier com.vanguardmmo.launcher --mac-package-name Vanguard
 
 APP="$WORK/image/Vanguard.app"

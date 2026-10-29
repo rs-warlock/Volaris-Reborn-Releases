@@ -7,6 +7,7 @@ DMG="$1"
 OUT="$PWD/smoke"; mkdir -p "$OUT"
 APP="$HOME/Applications/Vanguard.app"
 VG="$HOME/Vanguard"
+[ "${CHANNEL:-live}" = staff ] && VG="$HOME/VanguardStaff"   # the staff channel's own home (client update/Channel)
 res() { echo "$1=$2" >> "$OUT/results.txt"; }   # bash 3.2 (macOS) has no associative arrays
 : > "$OUT/results.txt"
 
@@ -45,6 +46,9 @@ for i in $(seq 1 200); do
 done
 sleep 5; shot launcher-after-update
 res update_installed $installed
+# launcher v2: the bootstrap fetched the release's launcher window and it started (UiBootstrap writes last-good.txt)
+[ -f "$VG/launcherui/last-good.txt" ] && res launcher_ui_started true || res launcher_ui_started false
+[ -f "$VG/launcher-ui-error.log" ] && cp "$VG/launcher-ui-error.log" "$OUT/"
 [ -f "$VG/launcher-error.log" ] && cp "$VG/launcher-error.log" "$OUT/"
 
 # Play: click the launcher's button through the accessibility API if this Mac allows it...
