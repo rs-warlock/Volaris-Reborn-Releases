@@ -56,7 +56,8 @@ started=none
 if [ "$installed" = true ]; then
   osascript -e 'tell application "System Events" to tell process "Vanguard" to get entire contents of window 1' > "$OUT/launcher-ui-tree.txt" 2>&1
   osascript "$(dirname "$0")/click_play.applescript" > "$OUT/click.txt" 2>&1
-  sleep 25
+  sleep 3; shot after-click   # the launcher's own message (a toast) shows for about 3 s
+  sleep 22
   if pgrep -f 'vanguard.build=player' >/dev/null; then
     started="launcher-play-button ($(head -c 120 "$OUT/click.txt"))"
     # the game must run on the app's own Java, not anything else on the Mac
@@ -75,6 +76,8 @@ if [ "$installed" = true ]; then
   for t in 30 60 90 120 150; do sleep 30; shot "game-${t}s"; done
 fi
 res game_started_by "$started"
+# launcher v2: one line per PLAY - what the press found and how the start went
+[ -f "$VG/launcher-play.log" ] && cp "$VG/launcher-play.log" "$OUT/"
 pgrep -f 'vanguard.build=player' >/dev/null && res game_alive_after_150s true || res game_alive_after_150s false
 [ -f "$VG/client.log" ] && tail -n 600 "$VG/client.log" > "$OUT/client-log-tail.txt"
 ls "$VG"/hs_err_pid*.log >/dev/null 2>&1 && { cp "$VG"/hs_err_pid*.log "$OUT/"; res jvm_crash true; } || res jvm_crash false
